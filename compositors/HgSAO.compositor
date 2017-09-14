@@ -1,0 +1,142 @@
+
+compositor_node HgSAORenderingNode
+{
+	texture mrtGBuffer target_width target_height PF_A2R10G10B10 PF_SHORT_GR depth_format PF_D32_FLOAT depth_texture depth_pool 5 explicit_resolve
+	texture mrtDepthBuffer target_width target_height PF_D32_FLOAT depth_pool 5
+
+	target mrtGBuffer
+	{
+		pass clear
+		{
+			colour_value 1 1 1 1
+		}
+
+		pass render_scene
+		{
+			overlays	off
+            shadows     ShadowMapDebuggingEsmShadowNodeCompute
+
+			is_prepass	on
+		}
+	}
+
+	out 0 mrtGBuffer
+	out 1 mrtDepthBuffer
+}
+
+compositor_node HgSAOPostprocessNode
+{
+    in 0 mrtGBuffer
+    in 1 mrtDepthBuffer
+    in 2 rt_renderwindow
+
+    texture rtMippedDepthBuffer target_width target_height PF_FLOAT32_R mipmaps 5
+
+    texture rtt target_width target_height PF_FLOAT32_RGBA depth_format PF_D32_FLOAT depth_texture depth_pool 5
+
+    texture rtOcclusion0 target_width target_height PF_FLOAT16_R
+    texture rtOcclusion1 target_width target_height PF_FLOAT16_R
+
+    target rtMippedDepthBuffer
+	{
+		pass render_quad
+		{
+            quad_normals   camera_far_corners_view_space
+
+            material CopyAndLinearizeDepth
+			input 0 mrtDepthBuffer
+        }
+		
+		pass generate_mipmaps
+		{
+			// compute_hq won't work on Mac use MetalTexture::_autogenerateMipmaps instead
+			//mipmap_method compute_hq
+		}
+	}
+
+    target rtOcclusion0
+    {
+        pass render_quad
+        {
+            //quad_normals   camera_far_corners_view_space
+
+            material HgSAO
+            input 0 rtMippedDepthBuffer
+            input 1 mrtGBuffer 0
+        }
+    }
+
+    target rtOcclusion1
+    {
+        pass render_quad
+        {
+            material HgSAOGaussianY
+            input 0 rtMippedDepthBuffer
+            input 1 mrtGBuffer 0
+            input 2 rtOcclusion0
+        }
+    }
+
+    target rtOcclusion0
+    {
+        pass render_quad
+        {
+            material HgSAOGaussianX
+            input 0 rtMippedDepthBuffer
+            input 1 mrtGBuffer 0
+            input 2 rtOcclusion1
+        }
+    }
+
+    target rtt
+    {
+        pass clear
+        {
+            colour_value 0.2 0.4 0.6 1
+            buffers colour
+        }
+        pass render_scene
+        {
+            overlays	off
+            shadows		ShadowMapDebuggingEsmShadowNodeCompute
+
+            use_prepass			mrtGBuffer mrtDepthBuffer
+            lod_update_list		false
+        }
+    }
+
+
+    target rt_renderwindow
+    {
+        //pass render_quad
+        //{
+        //    material Ogre/Copy/4xFP32
+        //    input 0 rtOcclusion0
+        //}
+
+        pass render_quad
+        {
+            material HgSAOPresent
+            input 0 rtt
+            input 1 rtOcclusion0
+        }
+
+        pass render_scene
+        {
+            lod_update_list	off
+
+            //Render Overlays
+            overlays	off
+            rq_first	254
+            rq_last		255
+        }
+    }
+}
+
+workspace HgSAOWorkspace
+{
+    connect			HgSAORenderingNode	0 1 	HgSAOPostprocessNode	0 1
+    connect_output								HgSAOPostprocessNode	2
+}
+
+

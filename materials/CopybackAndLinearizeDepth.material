@@ -1,0 +1,60 @@
+import Ogre/Copy/4xFP32 from "Copyback.material"
+
+fragment_program CopyAndLinearizeDepth_ps_HLSL hlsl
+{
+	source CopybackAndLinearizeDepth_ps.hlsl
+	entry_point main
+	target ps_5_0 ps_4_0 ps_4_0_level_9_1 ps_4_0_level_9_3
+}
+
+fragment_program CopyAndLinearizeDepth_ps_GLSL glsl
+{
+	source CopybackAndLinearizeDepth_ps.glsl
+	default_params { param_named tex int 0 }
+}
+
+fragment_program CopyAndLinearizeDepth_ps_Metal metal
+{
+	source CopybackAndLinearizeDepth_ps.metal
+    shader_reflection_pair_hint Ogre/Compositor/QuadCameraDir_vs
+}
+
+fragment_program CopyAndLinearizeDepth_ps unified
+{
+	delegate CopyAndLinearizeDepth_ps_GLSL
+	delegate CopyAndLinearizeDepth_ps_HLSL
+	delegate CopyAndLinearizeDepth_ps_Metal
+}
+
+material CopyAndLinearizeDepth
+{
+	technique
+	{
+		pass
+		{
+            depth_check off
+            depth_write off
+
+            cull_hardware none
+
+            vertex_program_ref Ogre/Compositor/QuadCameraDir_vs
+            {
+            }
+
+			fragment_program_ref CopyAndLinearizeDepth_ps
+			{
+                //projectionParams will be set from C++
+                param_named			projectionParams            float2	0 1
+
+                //param_named_auto    nearClipDistance            near_clip_distance
+                param_named_auto    farClipDistance             far_clip_distance
+			}
+
+            texture_unit depthTexture
+            {
+                filtering			none
+                tex_address_mode	clamp
+            }
+		}
+	}
+}

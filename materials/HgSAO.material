@@ -1,0 +1,282 @@
+// GLSL shaders
+vertex_program HgSAO_vs_GLSL glsl
+{
+	source HgSAO_vs.glsl
+}
+
+fragment_program HgSAO_ps_GLSL glsl
+{
+	source HgSAO_ps.glsl
+	default_params
+	{
+		param_named depthTexture            int 0
+        param_named gBuf_normals			int 1
+	}
+}
+
+fragment_program HgSAOGaussian_ps_GLSL glsl
+{
+    source HgSAOGaussian_ps.glsl
+    default_params
+    {
+        param_named depthTexture            int 0
+        param_named gBuf_normals			int 1
+        param_named occlusion               int2
+    }
+}
+
+fragment_program HgSAOPresent_ps_GLSL glsl
+{
+    source HgSAOPresent_ps.glsl
+    default_params
+    {
+        param_named scene            	int 0
+        param_named occulsion			int 1
+    }
+}
+
+// HLSL shaders
+vertex_program HgSAO_vs_HLSL hlsl
+{
+    source HgSAO_vs.hlsl
+    entry_point main
+    target vs_5_0 vs_4_0 vs_4_0_level_9_1 vs_4_0_level_9_3
+}
+
+fragment_program HgSAO_ps_HLSL hlsl
+{
+	source HgSAO_ps.hlsl
+	entry_point main
+	target ps_5_0 ps_4_0 ps_4_0_level_9_1 ps_4_0_level_9_3
+}
+
+fragment_program HgSAOGaussian_ps_HLSL hlsl
+{
+    source HgSAOGaussian_ps.hlsl
+    entry_point main
+    target ps_5_0 ps_4_0 ps_4_0_level_9_1 ps_4_0_level_9_3
+}
+
+fragment_program HgSAOPresent_ps_HLSL hlsl
+{
+    source HgSAOPresent_ps.hlsl
+    entry_point main
+    target ps_5_0 ps_4_0 ps_4_0_level_9_1 ps_4_0_level_9_3
+}
+
+
+// Metal shaders
+vertex_program HgSAO_vs_Metal metal
+{
+	source HgSAO_vs.metal
+}
+
+fragment_program HgSAO_ps_Metal metal
+{
+	source HgSAO_ps.metal
+	shader_reflection_pair_hint Ogre/Compositor/Quad_vs
+}
+
+fragment_program HgSAOGaussian_ps_Metal metal
+{
+    source HgSAOGaussian_ps.metal
+    shader_reflection_pair_hint Ogre/Compositor/Quad_vs
+}
+
+fragment_program HgSAOPresent_ps_Metal metal
+{
+    source HgSAOPresent_ps.metal
+    shader_reflection_pair_hint Ogre/Compositor/Quad_vs
+}
+
+
+// Unified definitions
+vertex_program HgSAO_vs unified
+{
+	delegate HgSAO_vs_HLSL
+	delegate HgSAO_vs_GLSL
+	delegate HgSAO_vs_Metal
+	
+	default_params
+    {
+        param_named_auto worldViewProj worldviewproj_matrix
+    }
+}
+
+fragment_program HgSAO_ps unified
+{
+	delegate HgSAO_ps_HLSL
+	delegate HgSAO_ps_GLSL
+	delegate HgSAO_ps_Metal
+}
+
+fragment_program HgSAOGaussian_ps unified
+{
+    delegate HgSAOGaussian_ps_HLSL
+    delegate HgSAOGaussian_ps_GLSL
+    delegate HgSAOGaussian_ps_Metal
+}
+
+fragment_program HgSAOPresent_ps unified
+{
+    delegate HgSAOPresent_ps_HLSL
+    delegate HgSAOPresent_ps_GLSL
+    delegate HgSAOPresent_ps_Metal
+}
+
+
+// Material definition
+material HgSAO
+{
+	technique
+	{
+		pass
+		{
+			depth_check off
+			depth_write off
+
+			cull_hardware none
+
+            //vertex_program_ref Ogre/Compositor/QuadCameraDir_vs
+            vertex_program_ref Ogre/Compositor/Quad_vs
+			{
+			}
+
+			fragment_program_ref HgSAO_ps
+			{
+                //projectionParams, projectionMatrix and inverseProjectionMatrix will be set from C++
+                param_named			projectionParams            float2	0 1
+				param_named_auto    viewportSize                viewport_size
+
+                param_named         projectionMatrix           float4x4
+                param_named         inverseProjectionMatrix    float4x4
+
+                //param_named_auto    nearClipDistance            near_clip_distance
+                //param_named_auto    farClipDistance             far_clip_distance
+
+                param_named         ssScale                     float   190.0
+                param_named         radius                      float   83.0
+                param_named         bias                        float   0.1
+                param_named         intensity                   float   4
+			}
+
+			texture_unit depthTexture
+			{
+				//filtering			none none point
+				filtering bilinear
+				tex_address_mode	clamp
+			}
+
+            texture_unit gBufferNormals
+            {
+                filtering none
+                tex_address_mode clamp
+            }
+
+            texture_unit random
+            {
+                filtering			none none point
+
+                texture             random.png
+                //texture             RandomNoise.png
+                tex_address_mode    wrap
+            }
+		}
+	}
+}
+
+material HgSAOGaussianX
+{
+	technique
+	{
+		pass
+		{
+			depth_check off
+			depth_write off
+
+			cull_hardware none
+
+            vertex_program_ref Ogre/Compositor/Quad_vs
+			{
+			}
+
+            fragment_program_ref HgSAOGaussian_ps
+            {
+                param_named_auto    viewportSize        viewport_size
+                param_named         step                uint2  1 0
+            }
+
+			texture_unit depthTexture
+			{
+				filtering           none
+				tex_address_mode	clamp
+			}
+
+            texture_unit gBufferNormals
+            {
+                filtering           none
+                tex_address_mode    clamp
+            }
+
+            texture_unit ao
+            {
+                filtering           none
+                tex_address_mode    clamp
+            }
+
+        }
+    }
+}
+
+material HgSAOGaussianY : HgSAOGaussianX
+{
+	technique
+	{
+		pass
+		{
+			fragment_program_ref HgSAOGaussian_ps
+			{
+                param_named_auto    viewportSize        viewport_size
+                param_named         step                uint2  0 1
+			}
+		}
+	}
+}
+
+
+material HgSAOPresent
+{
+	technique
+	{
+		pass
+		{
+			depth_check off
+			depth_write off
+
+			cull_hardware none
+
+            vertex_program_ref Ogre/Compositor/Quad_vs
+			{
+			}
+
+            fragment_program_ref HgSAOPresent_ps
+            {
+                param_named_auto    viewportSize        viewport_size
+                param_named         scale               float 10.0      // 10.0 is default
+                param_named         luma                float 1.0       // [ 0.0 - 1.0 ]
+            }
+
+			texture_unit scene
+			{
+				filtering           none
+				tex_address_mode	clamp
+			}
+
+            texture_unit ao
+            {
+                filtering           none
+                tex_address_mode    clamp
+            }
+        }
+    }
+}
